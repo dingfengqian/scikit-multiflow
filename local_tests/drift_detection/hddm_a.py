@@ -14,6 +14,7 @@ class HDDM_A(BaseDriftDetector):
         self.Z_epsilon = 0
         self.a_w = a_w
         self.a_d = a_d
+        self.two_side = False          # two side monitor the population mean
         self.reset()
 
     def add_element(self, prediction):
