@@ -4,7 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import fmin
 from arch import arch_model
-from hddm_w import HDDM_W
+from hddm_w_v2 import HDDM_W
+from hddm_a_v2 import HDDM_A
 from sklearn.preprocessing import MinMaxScaler
 
 def calStaArbitrageParam(preDataA, preDataB):
@@ -47,6 +48,35 @@ def showPlot(data, data2):
     plt.legend(['acc','bound'])
     plt.show()
 
+def showComaprsion(mspread, monitor, monitor_bound):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(211)
+    ax1.set_title('价差序列', fontdict={'family' : 'SimHei'})
+    ax2 = fig.add_subplot(212)
+    ax2.set_title('HDDM_W', fontdict={'family' : 'SimHei'})
+    ax1.plot(range(len(mspread)), mspread)
+    ax2.plot(range(len(monitor)), monitor)
+    ax2.plot(range(len(monitor)), monitor_bound)
+    plt.show()
+
+def hddm_a_tst(spread):
+    hddm = HDDM_A()
+    data_stream = spread
+    average_prediciton = []
+    average_prediction_bound = []
+    for i in range(len(spread)):
+        hddm.add_element(data_stream[i])
+        if hddm.detected_warning_zone():
+            print('Warning zone has been detected in data: ' + str(data_stream[i]) + ' - of index: ' + str(i))
+        if hddm.detected_change():
+            print('Change has been detected in data: ' + str(data_stream[i]) + ' - of index: ' + str(i))
+        average_prediciton.append(hddm.Z_)
+        average_prediction_bound.append(hddm.Z_epsilon)
+        # print('X', hddm.X_, ' ', 'Z', hddm.Z_)
+        # print('X_e', hddm.X_epsilon, ' ', 'Z', hddm.Z_epsilon)
+    # showPlot(average_prediciton, average_prediction_bound)
+    return average_prediciton, average_prediction_bound
+
 
 def hddm_w_tst(spread):
     hddm = HDDM_W()
@@ -64,8 +94,8 @@ def hddm_w_tst(spread):
         average_prediction_bound.append(hddm.Z_epsilon)
         # print('X', hddm.X_, ' ', 'Z', hddm.Z_)
         # print('X_e', hddm.X_epsilon, ' ', 'Z', hddm.Z_epsilon)
-    showPlot(average_prediciton, average_prediction_bound)
-
+    #showPlot(average_prediciton, average_prediction_bound)
+    return average_prediciton, average_prediction_bound
 
 if __name__ == '__main__':
 
@@ -81,8 +111,11 @@ if __name__ == '__main__':
     print(mspread)
 
     mm = MinMaxScaler()
-    result = mm.fit_transform(mspread)
+    #gen_mspread = mm.fit_transform(mspread)
+    gen_mspread = mspread
     #draw(result,'归一化残差')
     #draw2(mspread, result, '去中心化残差','归一化去中心化残差')
-    print(result)
-    hddm_w_tst(spread)
+    print(gen_mspread)
+    average, average_bound = hddm_w_tst(gen_mspread)
+    #draw(result, '')
+    showComaprsion(gen_mspread, average, average_bound)
