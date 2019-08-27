@@ -1,14 +1,18 @@
 import os
 import warnings
-from numpy import unique
+import re
 from timeit import default_timer as timer
+
+from numpy import unique
+
 from skmultiflow.evaluation.base_evaluator import StreamEvaluator
 from skmultiflow.utils import constants
 
 
 class EvaluatePrequential(StreamEvaluator):
-    """ The prequential evaluation method, or interleaved test-then-train method,
-    is an alternative to the traditional holdout evaluation, inherited from
+    """ The prequential evaluation method or interleaved test-then-train method.
+
+    An alternative to the traditional holdout evaluation, inherited from
     batch setting problems.
 
     The prequential evaluation is designed specifically for stream settings,
@@ -48,6 +52,10 @@ class EvaluatePrequential(StreamEvaluator):
         | 'kappa_t'
         | 'kappa_m'
         | 'true_vs_predicted'
+        | 'precision'
+        | 'recall'
+        | 'f1'
+        | 'gmean'
         | *Multi-target Classification*
         | 'hamming_score'
         | 'hamming_loss'
@@ -61,6 +69,9 @@ class EvaluatePrequential(StreamEvaluator):
         | 'average_mean_squared_error'
         | 'average_mean_absolute_error'
         | 'average_root_mean_square_error'
+        | *Experimental*
+        | 'running_time'
+        | 'model_size'
 
     output_file: string, optional (Default: None)
         File name to save the summary of the evaluation.
@@ -73,8 +84,9 @@ class EvaluatePrequential(StreamEvaluator):
         If True, the stream is restarted once the evaluation is complete.
 
     data_points_for_classification: bool(Default: False)
-        If True , the visualization used is a cloud of data points
-        (only works for classification)
+        If True, the visualization used is a cloud of data points (only works for classification) and default
+        performance metrics are ignored. If specific metrics are required, then they *must* be explicitly set
+        using the ``metrics`` attribute.
 
     Notes
     -----
@@ -180,14 +192,26 @@ class EvaluatePrequential(StreamEvaluator):
         self.show_plot = show_plot
         self.data_points_for_classification = data_points_for_classification
 
-        if metrics is None and data_points_for_classification is False:
-            self.metrics = [constants.ACCURACY, constants.KAPPA]
+        if not self.data_points_for_classification:
+            if metrics is None:
+                self.metrics = [constants.ACCURACY, constants.KAPPA]
 
-        elif data_points_for_classification is True:
-            self.metrics = [constants.DATA_POINTS]
+            else:
+                if isinstance(metrics, list):
+                    self.metrics = metrics
+                else:
+                    raise ValueError("Attribute 'metrics' must be 'None' or 'list', passed {}".format(type(metrics)))
 
         else:
-            self.metrics = metrics
+            if metrics is None:
+                self.metrics = [constants.DATA_POINTS]
+
+            else:
+                if isinstance(metrics, list):
+                    self.metrics = metrics
+                    self.metrics.append(constants.DATA_POINTS)
+                else:
+                    raise ValueError("Attribute 'metrics' must be 'None' or 'list', passed {}".format(type(metrics)))
 
         self.restart_stream = restart_stream
         self.n_sliding = n_wait
@@ -196,23 +220,23 @@ class EvaluatePrequential(StreamEvaluator):
         warnings.filterwarnings("ignore", ".*Passing 1d.*")
 
     def evaluate(self, stream, model, model_names=None):
-        """ Evaluates a learner or set of learners on samples from a stream.
+        """ Evaluates a model or set of models on samples from a stream.
 
         Parameters
         ----------
         stream: Stream
             The stream from which to draw the samples.
 
-        model: StreamModel or list
-            The learner or list of learners to evaluate.
+        model: skmultiflow.core.BaseStreamModel or sklearn.base.BaseEstimator or list
+            The model or list of models to evaluate.
 
         model_names: list, optional (Default=None)
-            A list with the names of the learners.
+            A list with the names of the models.
 
         Returns
         -------
         StreamModel or list
-            The trained learner(s).
+            The trained model(s).
 
         """
         self._init_evaluation(model=model, stream=stream, model_names=model_names)
@@ -345,15 +369,21 @@ class EvaluatePrequential(StreamEvaluator):
                     self._update_metrics()
                 break
 
-        self.evaluation_summary()
+        # Flush file buffer, in case it contains data
+        self._flush_file_buffer()
+
+        if len(set(self.metrics).difference({constants.DATA_POINTS})) > 0:
+            self.evaluation_summary()
+        else:
+            print('Done')
 
         if self.restart_stream:
             self.stream.restart()
 
         return self.model
 
-    def partial_fit(self, X, y, classes=None, weight=None):
-        """ Partially fit all the learners on the given data.
+    def partial_fit(self, X, y, classes=None, sample_weight=None):
+        """ Partially fit all the models on the given data.
 
         Parameters
         ----------
@@ -361,13 +391,13 @@ class EvaluatePrequential(StreamEvaluator):
             The data upon which the algorithm will create its model.
 
         y: Array-like
-            An array-like containing the classification targets for all samples in X.
+            An array-like containing the classification labels / target values for all samples in X.
 
         classes: list
-            Stores all the classes that may be encountered during the classification task.
+            Stores all the classes that may be encountered during the classification task. Not used for regressors.
 
-        weight: Array-like
-            Instance weight. If not provided, uniform weights are assumed.
+        sample_weight: Array-like
+            Samples weight. If not provided, uniform weights are assumed.
 
         Returns
         -------
@@ -377,14 +407,17 @@ class EvaluatePrequential(StreamEvaluator):
         """
         if self.model is not None:
             for i in range(self.n_models):
-                self.model[i].partial_fit(X, y, classes, weight)
+                if self._task_type == constants.CLASSIFICATION or \
+                        self._task_type == constants.MULTI_TARGET_CLASSIFICATION:
+                    self.model[i].partial_fit(X=X, y=y, classes=classes, sample_weight=sample_weight)
+                else:
+                    self.model[i].partial_fit(X=X, y=y, sample_weight=sample_weight)
             return self
         else:
             return self
 
     def predict(self, X):
-        """ Predicts the labels of the X samples, by calling the predict
-        function of all the learners.
+        """ Predicts with the estimator(s) being evaluated.
 
         Parameters
         ----------
@@ -393,9 +426,8 @@ class EvaluatePrequential(StreamEvaluator):
 
         Returns
         -------
-        list
-            A list containing the predicted labels for all instances in X in
-            all learners.
+        list of numpy.ndarray
+            Model(s) predictions
 
         """
         predictions = None
@@ -406,44 +438,10 @@ class EvaluatePrequential(StreamEvaluator):
 
         return predictions
 
-    def set_params(self, parameter_dict):
-        """ This function allows the users to change some of the evaluator's parameters,
-        by passing a dictionary where keys are the parameters names, and values are
-        the new parameters' values.
-
-        Parameters
-        ----------
-        parameter_dict: Dictionary
-            A dictionary where the keys are the names of attributes the user
-            wants to change, and the values are the new values of those attributes.
-
-        """
-        for name, value in parameter_dict.items():
-            if name == 'n_wait':
-                self.n_wait = value
-            elif name == 'max_samples':
-                self.max_samples = value
-            elif name == 'pretrain_size':
-                self.pretrain_size = value
-            elif name == 'batch_size':
-                self.batch_size = value
-            elif name == 'max_time':
-                self.max_time = value
-            elif name == 'output_file':
-                self.output_file = value
-            elif name == 'show_plot':
-                self.show_plot = value
-
     def get_info(self):
-        filename = "None"
+        info = self.__repr__()
         if self.output_file is not None:
             _, filename = os.path.split(self.output_file)
-        return 'Prequential Evaluator: n_wait: ' + str(self.n_wait) + \
-               ' - max_samples: ' + str(self.max_samples) + \
-               ' - max_time: ' + str(self.max_time) + \
-               ' - output_file: ' + filename + \
-               ' - batch_size: ' + str(self.batch_size) + \
-               ' - pretrain_size: ' + str(self.pretrain_size) + \
-               ' - task_type: ' + self._task_type + \
-               ' - show_plot: ' + ('True' if self.show_plot else 'False') + \
-               ' - metrics: ' + (str(self.metrics) if self.metrics is not None else 'None')
+            info = re.sub(r"output_file=(.\S+),", "output_file='{}',".format(filename), info)
+
+        return info

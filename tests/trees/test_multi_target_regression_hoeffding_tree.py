@@ -6,7 +6,7 @@ from skmultiflow.trees import MultiTargetRegressionHoeffdingTree
 
 
 def test_multi_target_regression_hoeffding_tree_mean(test_path):
-    stream = RegressionGenerator(n_samples=500, n_features=20,
+    stream = RegressionGenerator(n_samples=2000, n_features=20,
                                  n_informative=15, random_state=1,
                                  n_targets=3)
     stream.prepare_for_use()
@@ -14,8 +14,8 @@ def test_multi_target_regression_hoeffding_tree_mean(test_path):
     learner = MultiTargetRegressionHoeffdingTree(leaf_prediction='mean')
 
     cnt = 0
-    max_samples = 500
-    wait_samples = 10
+    max_samples = 2000
+    wait_samples = 200
     y_pred = np.zeros((int(max_samples / wait_samples), 3))
     y_true = np.zeros((int(max_samples / wait_samples), 3))
 
@@ -32,28 +32,32 @@ def test_multi_target_regression_hoeffding_tree_mean(test_path):
                              'expected_preds_multi_target_regression_mean.npy')
     expected_predictions = np.load(test_file)
 
-    # print(expected_predictions.shape)
     assert np.allclose(y_pred, expected_predictions)
 
     error = mean_absolute_error(y_true, y_pred)
-    expected_error = 167.40626294018753
+    expected_error = 191.2823924547882
     assert np.isclose(error, expected_error)
 
-    expected_info = \
-        'MultiTargetRegressionHoeffdingTree: max_byte_size: 33554432 - ' \
-        'memory_estimate_period: 1000000 - grace_period: 200 - ' \
-        'split_criterion: intra cluster variance reduction - ' \
-        'split_confidence: 1e-07 - tie_threshold: 0.05 - binary_split: False' \
-        ' - stop_mem_management: False - remove_poor_atts: False ' \
-        '- no_pre_prune: False - leaf_prediction: mean - nb_threshold: 0 - ' \
-        'nominal_attributes: [] - '
+    expected_info = "MultiTargetRegressionHoeffdingTree(binary_split=False, grace_period=200,\n" \
+                    "                                   leaf_prediction='mean',\n" \
+                    "                                   learning_ratio_const=True,\n" \
+                    "                                   learning_ratio_decay=0.001,\n" \
+                    "                                   learning_ratio_perceptron=0.02,\n" \
+                    "                                   max_byte_size=33554432,\n" \
+                    "                                   memory_estimate_period=1000000,\n" \
+                    "                                   nb_threshold=0, no_preprune=False,\n" \
+                    "                                   nominal_attributes=None, random_state=None,\n" \
+                    "                                   remove_poor_atts=False,\n" \
+                    "                                   split_confidence=1e-07,\n" \
+                    "                                   stop_mem_management=False,\n" \
+                    "                                   tie_threshold=0.05)"
     assert learner.get_info() == expected_info
     assert isinstance(learner.get_model_description(), type(''))
     assert type(learner.predict(X)) == np.ndarray
 
 
 def test_multi_target_regression_hoeffding_tree_perceptron(test_path):
-    stream = RegressionGenerator(n_samples=500, n_features=20,
+    stream = RegressionGenerator(n_samples=2000, n_features=20,
                                  n_informative=15, random_state=1,
                                  n_targets=3)
     stream.prepare_for_use()
@@ -62,8 +66,8 @@ def test_multi_target_regression_hoeffding_tree_perceptron(test_path):
                                                  random_state=1)
 
     cnt = 0
-    max_samples = 500
-    wait_samples = 10
+    max_samples = 2000
+    wait_samples = 200
     y_pred = np.zeros((int(max_samples / wait_samples), 3))
     y_true = np.zeros((int(max_samples / wait_samples), 3))
 
@@ -80,27 +84,32 @@ def test_multi_target_regression_hoeffding_tree_perceptron(test_path):
         test_path,
         'expected_preds_multi_target_regression_perceptron.npy'
     )
-    expected_predictions = np.load(test_file)
 
+    expected_predictions = np.load(test_file)
     assert np.allclose(y_pred, expected_predictions)
     error = mean_absolute_error(y_true, y_pred)
-    expected_error = 134.54152831279887
+    expected_error = 144.44877909957646
     assert np.isclose(error, expected_error)
 
-    expected_info = \
-        'MultiTargetRegressionHoeffdingTree: max_byte_size: 33554432 - ' \
-        'memory_estimate_period: 1000000 - grace_period: 200 - ' \
-        'split_criterion: intra cluster variance reduction - ' \
-        'split_confidence: 1e-07 - tie_threshold: 0.05 - binary_split: False' \
-        ' - stop_mem_management: False - remove_poor_atts: False ' \
-        '- no_pre_prune: False - leaf_prediction: perceptron - ' \
-        'nb_threshold: 0 - nominal_attributes: [] - '
+    expected_info = "MultiTargetRegressionHoeffdingTree(binary_split=False, grace_period=200,\n" \
+                    "                                   leaf_prediction='perceptron',\n" \
+                    "                                   learning_ratio_const=True,\n" \
+                    "                                   learning_ratio_decay=0.001,\n" \
+                    "                                   learning_ratio_perceptron=0.02,\n" \
+                    "                                   max_byte_size=33554432,\n" \
+                    "                                   memory_estimate_period=1000000,\n" \
+                    "                                   nb_threshold=0, no_preprune=False,\n" \
+                    "                                   nominal_attributes=None, random_state=1,\n" \
+                    "                                   remove_poor_atts=False,\n" \
+                    "                                   split_confidence=1e-07,\n" \
+                    "                                   stop_mem_management=False,\n" \
+                    "                                   tie_threshold=0.05)"
     assert learner.get_info() == expected_info
     assert isinstance(learner.get_model_description(), type(''))
 
 
 def test_multi_target_regression_hoeffding_tree_adaptive(test_path):
-    stream = RegressionGenerator(n_samples=500, n_features=20,
+    stream = RegressionGenerator(n_samples=2000, n_features=20,
                                  n_informative=15, random_state=1,
                                  n_targets=3)
     stream.prepare_for_use()
@@ -109,8 +118,8 @@ def test_multi_target_regression_hoeffding_tree_adaptive(test_path):
                                                  random_state=1)
 
     cnt = 0
-    max_samples = 500
-    wait_samples = 10
+    max_samples = 2000
+    wait_samples = 200
     y_pred = np.zeros((int(max_samples / wait_samples), 3))
     y_true = np.zeros((int(max_samples / wait_samples), 3))
 
@@ -127,21 +136,28 @@ def test_multi_target_regression_hoeffding_tree_adaptive(test_path):
         test_path,
         'expected_preds_multi_target_regression_adaptive.npy'
     )
+    np.save(test_file, y_pred)
     expected_predictions = np.load(test_file)
 
     assert np.allclose(y_pred, expected_predictions)
     error = mean_absolute_error(y_true, y_pred)
-    expected_error = 134.38731296533115
+    expected_error = 150.63043466390528
     assert np.isclose(error, expected_error)
 
-    expected_info = \
-        'MultiTargetRegressionHoeffdingTree: max_byte_size: 33554432 - ' \
-        'memory_estimate_period: 1000000 - grace_period: 200 - ' \
-        'split_criterion: intra cluster variance reduction - ' \
-        'split_confidence: 1e-07 - tie_threshold: 0.05 - binary_split: False' \
-        ' - stop_mem_management: False - remove_poor_atts: False ' \
-        '- no_pre_prune: False - leaf_prediction: adaptive - ' \
-        'nb_threshold: 0 - nominal_attributes: [] - '
+    expected_info = "MultiTargetRegressionHoeffdingTree(binary_split=False, grace_period=200,\n" \
+                    "                                   leaf_prediction='adaptive',\n" \
+                    "                                   learning_ratio_const=True,\n" \
+                    "                                   learning_ratio_decay=0.001,\n" \
+                    "                                   learning_ratio_perceptron=0.02,\n" \
+                    "                                   max_byte_size=33554432,\n" \
+                    "                                   memory_estimate_period=1000000,\n" \
+                    "                                   nb_threshold=0, no_preprune=False,\n" \
+                    "                                   nominal_attributes=None, random_state=1,\n" \
+                    "                                   remove_poor_atts=False,\n" \
+                    "                                   split_confidence=1e-07,\n" \
+                    "                                   stop_mem_management=False,\n" \
+                    "                                   tie_threshold=0.05)"
+
     assert learner.get_info() == expected_info
     assert isinstance(learner.get_model_description(), type(''))
 

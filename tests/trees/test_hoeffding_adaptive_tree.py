@@ -29,35 +29,28 @@ def test_hat_mc(test_path):
         learner.partial_fit(X, y)
         cnt += 1
 
-    expected_predictions = array('i', [1, 0, 0, 1, 1, 1, 1, 1, 1, 1,
-                                       0, 1, 1, 1, 1, 0, 1, 1, 1, 1,
+    expected_predictions = array('i', [1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                                       1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-                                       1, 1, 1, 0, 1, 0, 1, 0, 1])
+                                       1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                       1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                       1, 1, 1, 1, 1, 1, 1, 1, 1])
     assert np.alltrue(y_pred == expected_predictions)
 
     test_file = os.path.join(test_path, 'test_hoeffding_adaptive_tree_mc.npy')
     data = np.load(test_file)
     assert np.allclose(y_proba, data)
 
-    expected_info = 'HAT: max_byte_size: 33554432 - memory_estimate_period: 1000000 - grace_period: 200' \
-                    ' - split_criterion: info_gain - split_confidence: 1e-07 - tie_threshold: 0.05' \
-                    ' - binary_split: False - stop_mem_management: False - remove_poor_atts: False' \
-                    ' - no_pre_prune: False - leaf_prediction: mc - nb_threshold: 0' \
-                    ' - nominal_attributes: [] - '
+    expected_info = "HAT(binary_split=False, grace_period=200, leaf_prediction='mc',\n" \
+                    "    max_byte_size=33554432, memory_estimate_period=1000000, nb_threshold=0,\n" \
+                    "    no_preprune=False, nominal_attributes=None, remove_poor_atts=False,\n" \
+                    "    split_confidence=1e-07, split_criterion='info_gain',\n" \
+                    "    stop_mem_management=False, tie_threshold=0.05)"
 
     assert learner.get_info() == expected_info
 
-    expected_model_1 = 'Leaf = Class 1.0 | {0.0: 0.005295278636481529, 1.0: 1.9947047213635185}\n'
-    expected_model_2 = 'Leaf = Class 1.0 | {0.0: 0.0052952786364815294, 1.0: 1.9947047213635185}\n'
-    expected_model_3 = 'Leaf = Class 1.0 | {1.0: 1.9947047213635185, 0.0: 0.0052952786364815294}\n'
-    expected_model_4 = 'Leaf = Class 1.0 | {1.0: 1.9947047213635185, 0.0: 0.005295278636481529}\n'
+    expected_model_1 = 'Leaf = Class 1.0 | {0.0: 398.0, 1.0: 1000.0}\n'
 
-    assert (learner.get_model_description() == expected_model_1) \
-           or  (learner.get_model_description() == expected_model_2) \
-           or  (learner.get_model_description() == expected_model_3) \
-           or  (learner.get_model_description() == expected_model_4) \
-
+    assert (learner.get_model_description() == expected_model_1)
 
     assert type(learner.predict(X)) == np.ndarray
     assert type(learner.predict_proba(X)) == np.ndarray
@@ -104,11 +97,11 @@ def test_hat_nb(test_path):
     data = np.load(test_file)
     assert np.allclose(y_proba, data)
 
-    expected_info = 'HAT: max_byte_size: 33554432 - memory_estimate_period: 1000000 - grace_period: 200' \
-                    ' - split_criterion: info_gain - split_confidence: 1e-07 - tie_threshold: 0.05' \
-                    ' - binary_split: False - stop_mem_management: False - remove_poor_atts: False' \
-                    ' - no_pre_prune: False - leaf_prediction: nb - nb_threshold: 0' \
-                    ' - nominal_attributes: [] - '
+    expected_info = "HAT(binary_split=False, grace_period=200, leaf_prediction='nb',\n" \
+                    "    max_byte_size=33554432, memory_estimate_period=1000000, nb_threshold=0,\n" \
+                    "    no_preprune=False, nominal_attributes=None, remove_poor_atts=False,\n" \
+                    "    split_confidence=1e-07, split_criterion='info_gain',\n" \
+                    "    stop_mem_management=False, tie_threshold=0.05)"
 
     assert learner.get_info() == expected_info
     assert type(learner.predict(X)) == np.ndarray
@@ -137,22 +130,22 @@ def test_hat_nba(test_path):
         learner.partial_fit(X, y)
         cnt += 1
 
-    expected_predictions = array('i', [0, 0, 1, 0, 1, 1, 0, 1, 1, 1,
+    expected_predictions = array('i', [1, 0, 1, 0, 1, 1, 0, 1, 1, 1,
                                        0, 1, 0, 1, 0, 1, 1, 1, 1, 1,
-                                       1, 1, 1, 1, 1, 0, 0, 0, 0, 1,
+                                       1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
                                        1, 0, 1, 1, 0, 0, 0, 0, 1, 1,
-                                       1, 0, 1, 1, 0, 1, 1, 1, 0])
+                                       1, 0, 0, 1, 0, 1, 0, 1, 0])
     assert np.alltrue(y_pred == expected_predictions)
 
     test_file = os.path.join(test_path, 'test_hoeffding_adaptive_tree_nba.npy')
     data = np.load(test_file)
     assert np.allclose(y_proba, data)
 
-    expected_info = 'HAT: max_byte_size: 33554432 - memory_estimate_period: 1000000 - grace_period: 200' \
-                    ' - split_criterion: info_gain - split_confidence: 1e-07 - tie_threshold: 0.05' \
-                    ' - binary_split: False - stop_mem_management: False - remove_poor_atts: False' \
-                    ' - no_pre_prune: False - leaf_prediction: nba - nb_threshold: 0' \
-                    ' - nominal_attributes: [] - '
+    expected_info = "HAT(binary_split=False, grace_period=200, leaf_prediction='nba',\n" \
+                    "    max_byte_size=33554432, memory_estimate_period=1000000, nb_threshold=0,\n" \
+                    "    no_preprune=False, nominal_attributes=None, remove_poor_atts=False,\n" \
+                    "    split_confidence=1e-07, split_criterion='info_gain',\n" \
+                    "    stop_mem_management=False, tie_threshold=0.05)"
 
     assert learner.get_info() == expected_info
     assert type(learner.predict(X)) == np.ndarray

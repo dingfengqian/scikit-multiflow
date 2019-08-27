@@ -1,7 +1,9 @@
 import sys
+import io
 from abc import ABCMeta, abstractmethod
 from timeit import default_timer as timer
-from skmultiflow.core.base_object import BaseObject
+
+from skmultiflow.core import BaseSKMObject
 from skmultiflow.data.base_stream import Stream
 from .evaluation_data_buffer import EvaluationDataBuffer
 from skmultiflow.visualization.evaluation_visualizer import EvaluationVisualizer
@@ -13,7 +15,7 @@ import skmultiflow.utils.constants as constants
 from skmultiflow.utils.utils import calculate_object_size
 
 
-class StreamEvaluator(BaseObject, metaclass=ABCMeta):
+class StreamEvaluator(BaseSKMObject, metaclass=ABCMeta):
     """ The abstract class that works as a base model for all of this framework's
     evaluators. It creates a basic interface that evaluation modules should
     follow in order to use them with all the tools available in scikit-workflow.
@@ -26,6 +28,8 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
     NotImplementedError: This is an abstract class.
 
     """
+
+    _estimator_type = 'evaluator'
 
     def __init__(self):
         # Evaluator configuration
@@ -47,6 +51,8 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         self.current_eval_measurements = None
         self._data_dict = None
         self._data_buffer = None
+        self._file_buffer = ''
+        self._file_buffer_size = 0
 
         # Misc
         self._method = None
@@ -90,7 +96,7 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def partial_fit(self, X, y, classes=None, weight=None):
+    def partial_fit(self, X, y, classes=None, sample_weight=None):
         """ Partially fits the classifiers.
 
         X: numpy.ndarray of shape (n_samples, n_features)
@@ -99,61 +105,32 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         y: Array-like
             An array-like containing the class labels of all samples in X.
 
-        classes: list
-            A list containing all class labels of the classification problem.
+        classes: Array-like
+            A list containing all class labels of the classification problem. Not used for regressors.
 
-        weight: Array-like
-            Instance weight. If not provided, uniform weights are assumed.
+        sample_weight: Array-like
+            Samples weight. If not provided, uniform weights are assumed.
             Applicability varies depending on the algorithm.
 
         Returns
         -------
-        BaseClassifier extension or list of BaseClassifier extensions
-            The trained classifier's at the end of the evaluation process.
+        self
 
         """
         raise NotImplementedError
 
     @abstractmethod
     def predict(self, X):
-        """ Predicts with the classifier, or classifiers, being evaluated.
+        """ Predicts with the estimator(s) being evaluated.
 
         X: numpy.ndarray of shape (n_samples, n_features)
             The feature's matrix.
 
         Returns
         -------
-        list
-            A list containing the array-likes representing each classifier's
-            prediction.
+        list of numpy.ndarray
+            Model(s) predictions
 
-        """
-        raise NotImplementedError
-
-    def get_class_type(self):
-        return 'evaluator'
-
-    @abstractmethod
-    def set_params(self, parameter_dict):
-        """ Update parameter names and values via a dictionary.
-
-        Parameters
-        ----------
-        parameter_dict: dictionary
-            A dictionary where the keys are parameters' names and the values
-            are the new values for those parameters.
-
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_info(self):
-        """Collects information about the evaluator.
-
-            Returns
-            -------
-            string
-                Evaluator description.
         """
         raise NotImplementedError
 
@@ -393,6 +370,26 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
                     values[0].append(self.mean_eval_measurements[i].get_average_root_mean_square_error())
                     values[1].append(self.current_eval_measurements[i].get_average_root_mean_square_error())
 
+            elif metric == constants.F1_SCORE:
+                for i in range(self.n_models):
+                    values[0].append(self.mean_eval_measurements[i].get_f1_score())
+                    values[1].append(self.current_eval_measurements[i].get_f1_score())
+
+            elif metric == constants.PRECISION:
+                for i in range(self.n_models):
+                    values[0].append(self.mean_eval_measurements[i].get_precision())
+                    values[1].append(self.current_eval_measurements[i].get_precision())
+
+            elif metric == constants.RECALL:
+                for i in range(self.n_models):
+                    values[0].append(self.mean_eval_measurements[i].get_recall())
+                    values[1].append(self.current_eval_measurements[i].get_recall())
+
+            elif metric == constants.GMEAN:
+                for i in range(self.n_models):
+                    values[0].append(self.mean_eval_measurements[i].get_g_mean())
+                    values[1].append(self.current_eval_measurements[i].get_g_mean())
+
             elif metric == constants.TRUE_VS_PREDICTED:
                 y_true = -1
                 y_pred = []
@@ -482,11 +479,12 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
             with open(self.output_file, 'w+') as f:
                 f.write("# TEST CONFIGURATION BEGIN")
                 if hasattr(self.stream, 'get_info'):
-                    f.write("\n# {}".format(self.stream.get_info()))
+                    f.write("\n# {}".format(" ".join([line.strip() for line in self.stream.get_info().splitlines()])))
                 for i in range(self.n_models):
                     if hasattr(self.model[i], 'get_info'):
-                        f.write("\n# [{}] {}".format(self.model_names[i], self.model[i].get_info()))
-                f.write("\n# {}".format(self.get_info()))
+                        info = " ".join([line.strip() for line in self.model[i].get_info().splitlines()])
+                        f.write("\n# [{}] {}".format(self.model_names[i], info))
+                f.write("\n# {}".format(" ".join([line.strip() for line in self.get_info().splitlines()])))
                 f.write("\n# TEST CONFIGURATION END")
                 header = '\nid'
                 for metric in self.metrics:
@@ -519,6 +517,8 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
                     elif metric == constants.MODEL_SIZE:
                         for i in range(self.n_models):
                             header += ',model_size_[{0}]'.format(self.model_names[i])
+                    elif metric == constants.DATA_POINTS:
+                        continue
                     else:
                         for i in range(self.n_models):
                             header += ',mean_{0}_[{1}],current_{0}_[{1}]'.format(metric, self.model_names[i])
@@ -549,6 +549,8 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
                     values = self._data_buffer.get_data(metric_id=metric, data_id='model_size')
                     for i in range(self.n_models):
                         line += ',{:.6f}'.format(values[i])
+                elif metric == constants.DATA_POINTS:
+                    continue
                 else:
                     mean_values = self._data_buffer.get_data(metric_id=metric, data_id=constants.MEAN)
                     current_values = self._data_buffer.get_data(metric_id=metric, data_id=constants.CURRENT)
@@ -556,8 +558,20 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
                     for i in range(self.n_models):
                         line += ',{:.6f},{:.6f}'.format(values[0][i], values[1][i])
 
+            line = '\n' + line
+            if sys.getsizeof(line) + self._file_buffer_size > io.DEFAULT_BUFFER_SIZE:
+                # Appending the next line will make the buffer to exceed the system's default buffer size
+                # flush the content of the buffer
+                self._flush_file_buffer()
+            self._file_buffer += line
+            self._file_buffer_size += sys.getsizeof(line)
+
+    def _flush_file_buffer(self):
+        if self._file_buffer_size > 0 and self.output_file is not None:
             with open(self.output_file, 'a') as f:
-                f.write('\n' + line)
+                f.write(self._file_buffer)
+            self._file_buffer = ''
+            self._file_buffer_size = 0
 
     def _init_plot(self):
         """ Initialize plot to display the evaluation results.
@@ -597,6 +611,18 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
                 print('{} - Kappa M      : {:.4f}'.format(
                     self.model_names[i],
                     self._data_buffer.get_data(metric_id=constants.KAPPA_M, data_id=constants.MEAN)[i]))
+            if constants.PRECISION in self.metrics:
+                print('{} - Precision: {:.4f}'.format(
+                    self.model_names[i],
+                    self._data_buffer.get_data(metric_id=constants.PRECISION, data_id=constants.MEAN)[i]))
+            if constants.RECALL in self.metrics:
+                print('{} - Recall: {:.4f}'.format(
+                    self.model_names[i],
+                    self._data_buffer.get_data(metric_id=constants.RECALL, data_id=constants.MEAN)[i]))
+            if constants.F1_SCORE in self.metrics:
+                print('{} - F1 score: {:.4f}'.format(
+                    self.model_names[i],
+                    self._data_buffer.get_data(metric_id=constants.F1_SCORE, data_id=constants.MEAN)[i]))
             if constants.HAMMING_SCORE in self.metrics:
                 print('{} - Hamming score: {:.4f}'.format(
                     self.model_names[i],

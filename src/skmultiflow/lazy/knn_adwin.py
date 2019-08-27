@@ -1,4 +1,3 @@
-import sys
 from skmultiflow.lazy import KNN
 from skmultiflow.drift_detection import ADWIN
 from skmultiflow.utils.data_structures import InstanceWindow
@@ -6,7 +5,7 @@ from skmultiflow.utils.utils import *
 
 
 class KNNAdwin(KNN):
-    """ K-Nearest Neighbors Classifier with ADWIN Change detector 
+    """ K-Nearest Neighbors classifier with ADWIN change detector.
     
     This Classifier is an improvement from the regular KNN classifier, 
     as it is resistant to concept drift. It utilises the ADWIN change 
@@ -23,21 +22,20 @@ class KNNAdwin(KNN):
     
     Parameters
     ----------
-    n_neighbors: int
+    n_neighbors: int (default=5)
         The number of nearest neighbors to search for.
         
-    max_window_size: int
+    max_window_size: int (default=1000)
         The maximum size of the window storing the last viewed samples.
         
-    leaf_size: int
+    leaf_size: int (default=30)
         The maximum number of samples that can be stored in one leaf node, 
         which determines from which point the algorithm will switch for a 
         brute-force approach. The bigger this number the faster the tree 
         construction time, but the slower the query time will be.
         
-    categorical_list: An array-like
-        Each entry is the index of a categorical feature. May be requested 
-        further filtering.
+    nominal_attributes: numpy.ndarray (optional, default=None)
+        List of Nominal attributes. If emtpy, then assume that all attributes are numerical.
         
     Raises
     ------
@@ -80,11 +78,12 @@ class KNNAdwin(KNN):
 
     """
 
-    def __init__(self, n_neighbors=5, max_window_size=sys.maxsize, leaf_size=30, categorical_list=None):
-        super().__init__(n_neighbors=n_neighbors, max_window_size=max_window_size, leaf_size=leaf_size,
-                         categorical_list=categorical_list)
+    def __init__(self, n_neighbors=5, max_window_size=1000, leaf_size=30, nominal_attributes=None):
+        super().__init__(n_neighbors=n_neighbors,
+                         max_window_size=max_window_size,
+                         leaf_size=leaf_size,
+                         nominal_attributes=nominal_attributes)
         self.adwin = ADWIN()
-        self.window = None
 
     def reset(self):
         """ reset
@@ -101,11 +100,7 @@ class KNNAdwin(KNN):
         self.adwin = ADWIN()
         return super().reset()
 
-    def fit(self, X, y, classes=None, weights=None):
-        self.partial_fit(X, y, classes, weights)
-        return self
-
-    def partial_fit(self, X, y, classes=None, weight=None):
+    def partial_fit(self, X, y, classes=None, sample_weight=None):
         """ partial_fit
         
         Partially fits the model. This is done by updating the window 
@@ -122,9 +117,10 @@ class KNNAdwin(KNN):
             An array-like containing the classification targets for all 
             samples in X.
             
-        classes: Not used.
+        classes: numpy.ndarray, optional (default=None)
+            Array with all possible/known classes.
 
-        weight: Not used.
+        sample_weight: Not used.
         
         Returns
         -------
@@ -145,17 +141,8 @@ class KNNAdwin(KNN):
                 self.adwin.add_element(0)
 
         if self.window.n_samples >= self.n_neighbors:
-            changed = self.adwin.detected_change()
-
-            if changed:
+            if self.adwin.detected_change():
                 if self.adwin.width < self.window.n_samples:
                     for i in range(self.window.n_samples, self.adwin.width, -1):
                         self.window.delete_element()
         return self
-
-    def get_info(self):
-        info = '{}:'.format(type(self).__name__)
-        info += ' - n_neighbors: {}'.format(self.n_neighbors)
-        info += ' - max_window_size: {}'.format(self.max_window_size)
-        info += ' - leaf_size: {}'.format(self.leaf_size)
-        return info
